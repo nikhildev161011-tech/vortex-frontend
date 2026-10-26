@@ -1,0 +1,11 @@
+import axios from 'axios';
+
+const API = axios.create({
+  baseURL: import.meta.env.VITE_BACKEND_URL || 'https://vortex-1-r5ty.onrender.com',
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+export default API;
