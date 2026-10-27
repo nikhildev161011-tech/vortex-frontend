@@ -5,6 +5,9 @@ import { auth } from '../firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 
 export default function Login({ onLoginComplete }) {
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showInstallGate, setShowInstallGate] = useState(false);
+  
   const [subStep, setSubStep] = useState(1);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -13,29 +16,28 @@ export default function Login({ onLoginComplete }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // PWA Custom Install Prompt States
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [isInstallable, setIsInstallable] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
-    // Check if app is already installed/running in standalone mode
-    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
-      setIsStandalone(true);
+    const checkStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    setIsStandalone(checkStandalone);
+    
+    // अगर ऐप इंस्टॉल नहीं है, तो सबसे पहले इंस्टॉल गेट दिखाओ
+    if (!checkStandalone) {
+      setShowInstallGate(true);
     }
 
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      setIsInstallable(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     window.addEventListener('appinstalled', () => {
-      setIsInstallable(false);
       setDeferredPrompt(null);
       setIsStandalone(true);
+      setShowInstallGate(false);
     });
 
     return () => {
@@ -44,13 +46,20 @@ export default function Login({ onLoginComplete }) {
   }, []);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsInstallable(false);
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setShowInstallGate(false);
+      }
+      setDeferredPrompt(null);
+    } else {
+      alert('To install Vortex, tap your browser menu (3 dots) and select "Install app" or "Add to Home screen".');
     }
-    setDeferredPrompt(null);
+  };
+
+  const handleContinueToBrowser = () => {
+    setShowInstallGate(false);
   };
 
   const setupRecaptcha = () => {
@@ -161,263 +170,85 @@ export default function Login({ onLoginComplete }) {
       WebkitTapHighlightColor: 'transparent'
     }}>
       <div id="recaptcha-container"></div>
-      
-      <AnimatePresence mode="wait">
-        {subStep === 1 && (
-          <motion.div
-            key="name-step"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.4 }}
-            style={{
-              width: '100%',
-              maxWidth: '380px',
-              padding: '24px 20px',
-              borderRadius: '24px',
-              background: 'transparent',
-              border: 'none',
-              boxShadow: 'none',
-              boxSizing: 'border-box',
-              textAlign: 'left'
-            }}
-          >
-            <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px', color: '#fff' }}>What's your name?</h2>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '24px' }}>Please enter your name to set up your Vortex profile.</p>
-            
-            <input
-              type="text"
-              placeholder="Enter your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '14px 16px',
-                borderRadius: '14px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                color: '#fff',
-                fontSize: '15px',
-                outline: 'none',
-                marginBottom: '20px',
-                boxSizing: 'border-box'
-              }}
-            />
 
-            <button
-              onClick={handleNext}
-              disabled={!isNameValid}
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: '14px',
-                background: isNameValid 
-                  ? 'linear-gradient(135deg, rgba(56,189,248,0.9), rgba(37,99,235,0.9))' 
-                  : 'rgba(255,255,255,0.08)',
-                border: 'none',
-                color: isNameValid ? '#fff' : 'rgba(255,255,255,0.3)',
-                fontSize: '15px',
-                fontWeight: '600',
-                cursor: isNameValid ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: isNameValid ? '0 10px 25px rgba(37, 99, 235, 0.3)' : 'none',
-                transition: 'all 0.3s ease',
-                WebkitTapHighlightColor: 'transparent'
-              }}
-            >
-              Next <ArrowRight size={18} />
-            </button>
-          </motion.div>
-        )}
+      {showInstallGate ? (
+        /* ================= PWA WELCOME / INSTALL GATE ================= */
+        <motion.div
+          key="install-gate"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.4 }}
+          style={{
+            width: '100%',
+            maxWidth: '380px',
+            padding: '30px 20px',
+            borderRadius: '24px',
+            background: 'rgba(255, 255, 255, 0.03)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxSizing: 'border-box',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center'
+          }}
+        >
+          <div style={{
+            width: '80px',
+            height: '80px',
+            borderRadius: '20px',
+            background: '#000',
+            border: '1px solid rgba(56,189,248,0.3)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: '20px',
+            boxShadow: '0 10px 30px rgba(56,189,248,0.2)',
+            overflow: 'hidden'
+          }}>
+            <img src="/appicon.png" alt="Vortex Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
 
-        {subStep === 2 && (
-          <motion.div
-            key="phone-step"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.4 }}
-            style={{
-              width: '100%',
-              maxWidth: '380px',
-              padding: '24px 20px',
-              borderRadius: '24px',
-              background: 'transparent',
-              border: 'none',
-              boxShadow: 'none',
-              boxSizing: 'border-box',
-              textAlign: 'left'
-            }}
-          >
-            <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px', color: '#fff' }}>Enter Mobile Number</h2>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '24px' }}>We will send a verification code via SMS.</p>
-            
-            {errorMsg && <p style={{ fontSize: '13px', color: '#f87171', marginBottom: '16px' }}>{errorMsg}</p>}
+          <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px', color: '#fff' }}>Vortex Secure Messenger</h2>
+          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '30px', lineHeight: '1.5' }}>
+            Experience lightning-fast, secure real-time messaging. Install Vortex as an app for the best experience!
+          </p>
 
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '14px',
-              padding: '0 14px',
-              marginBottom: '20px',
-              boxSizing: 'border-box'
-            }}>
-              <span style={{ fontSize: '15px', fontWeight: '600', color: 'rgba(255,255,255,0.8)', marginRight: '10px' }}>+91</span>
-              <input
-                type="tel"
-                placeholder="Enter your number"
-                maxLength="10"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '14px 0',
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#fff',
-                  fontSize: '15px',
-                  outline: 'none'
-                }}
-              />
-            </div>
-
-            <button
-              onClick={handleNext}
-              disabled={!isPhoneValid || loading}
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: '14px',
-                background: isPhoneValid 
-                  ? 'linear-gradient(135deg, rgba(56,189,248,0.9), rgba(37,99,235,0.9))' 
-                  : 'rgba(255,255,255,0.08)',
-                border: 'none',
-                color: isPhoneValid ? '#fff' : 'rgba(255,255,255,0.3)',
-                fontSize: '15px',
-                fontWeight: '600',
-                cursor: isPhoneValid && !loading ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: isPhoneValid ? '0 10px 25px rgba(37, 99, 235, 0.3)' : 'none',
-                transition: 'all 0.3s ease',
-                WebkitTapHighlightColor: 'transparent'
-              }}
-            >
-              {loading ? 'Sending...' : 'Send OTP'} <ArrowRight size={18} />
-            </button>
-          </motion.div>
-        )}
-
-        {subStep === 3 && (
-          <motion.div
-            key="otp-step"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.4 }}
-            style={{
-              width: '100%',
-              maxWidth: '380px',
-              padding: '24px 20px',
-              borderRadius: '24px',
-              background: 'transparent',
-              border: 'none',
-              boxShadow: 'none',
-              boxSizing: 'border-box',
-              textAlign: 'left'
-            }}
-          >
-            <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px', color: '#fff' }}>Enter OTP</h2>
-            <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '24px' }}>Code sent to +91 {phone}</p>
-            
-            {errorMsg && <p style={{ fontSize: '13px', color: '#f87171', marginBottom: '16px' }}>{errorMsg}</p>}
-
-            <div style={{ display: 'flex', gap: '6px', justifyContent: 'space-between', marginBottom: '24px' }}>
-              {otp.map((digit, index) => (
-                <input
-                  key={index}
-                  id={`otp-input-${index}`}
-                  type="text"
-                  maxLength="1"
-                  value={digit}
-                  onChange={(e) => handleOtpChange(e.target.value, index)}
-                  style={{
-                    width: '40px',
-                    height: '48px',
-                    borderRadius: '10px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    color: '#fff',
-                    fontSize: '18px',
-                    fontWeight: '600',
-                    textAlign: 'center',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              ))}
-            </div>
-
-            <button
-              onClick={handleNext}
-              disabled={!isOtpValid || loading}
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: '14px',
-                background: isOtpValid 
-                  ? 'linear-gradient(135deg, rgba(56,189,248,0.9), rgba(37,99,235,0.9))' 
-                  : 'rgba(255,255,255,0.08)',
-                border: 'none',
-                color: isOtpValid ? '#fff' : 'rgba(255,255,255,0.3)',
-                fontSize: '15px',
-                fontWeight: '600',
-                cursor: isOtpValid && !loading ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: isOtpValid ? '0 10px 25px rgba(37, 99, 235, 0.3)' : 'none',
-                transition: 'all 0.3s ease',
-                WebkitTapHighlightColor: 'transparent'
-              }}
-            >
-              {loading ? 'Verifying...' : 'Verify & Enter'} <ShieldCheck size={18} />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* PWA Install & Continue to Browser Section */}
-      {!isStandalone && isInstallable && (
-        <div style={{
-          width: '100%',
-          maxWidth: '380px',
-          marginTop: '16px',
-          padding: '0 20px',
-          boxSizing: 'border-box',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px'
-        }}>
           <button
             onClick={handleInstallClick}
             style={{
               width: '100%',
-              padding: '12px',
-              borderRadius: '12px',
-              background: 'rgba(56, 189, 248, 0.15)',
-              border: '1px solid rgba(56, 189, 248, 0.4)',
-              color: '#38bdf8',
-              fontSize: '14px',
+              padding: '14px',
+              borderRadius: '14px',
+              background: 'linear-gradient(135deg, rgba(56,189,248,0.9), rgba(37,99,235,0.9))',
+              border: 'none',
+              color: '#fff',
+              fontSize: '15px',
               fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 10px 25px rgba(37, 99, 235, 0.3)',
+              marginBottom: '12px',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <Download size={18} /> Install Vortex App
+          </button>
+
+          <button
+            onClick={handleContinueToBrowser}
+            style={{
+              width: '100%',
+              padding: '12px',
+              borderRadius: '14px',
+              background: 'transparent',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              color: 'rgba(255, 255, 255, 0.7)',
+              fontSize: '14px',
+              fontWeight: '500',
               cursor: 'pointer',
               display: 'flex',
               justifyContent: 'center',
@@ -426,16 +257,243 @@ export default function Login({ onLoginComplete }) {
               transition: 'all 0.2s ease'
             }}
           >
-            <Download size={16} /> Install Vortex App
+            <Globe size={16} /> Continue in Browser
           </button>
-        </div>
-      )}
+        </motion.div>
+      ) : (
+        /* ================= REGULAR LOGIN FLOW ================= */
+        <AnimatePresence mode="wait">
+          {subStep === 1 && (
+            <motion.div
+              key="name-step"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.4 }}
+              style={{
+                width: '100%',
+                maxWidth: '380px',
+                padding: '24px 20px',
+                borderRadius: '24px',
+                background: 'transparent',
+                border: 'none',
+                boxShadow: 'none',
+                boxSizing: 'border-box',
+                textAlign: 'left'
+              }}
+            >
+              <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px', color: '#fff' }}>What's your name?</h2>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '24px' }}>Please enter your name to set up your Vortex profile.</p>
+              
+              <input
+                type="text"
+                placeholder="Enter your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  borderRadius: '14px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  color: '#fff',
+                  fontSize: '15px',
+                  outline: 'none',
+                  marginBottom: '20px',
+                  boxSizing: 'border-box'
+                }}
+              />
 
-      {/* Continue to Browser Note / Option */}
-      {!isStandalone && (
-        <div style={{ marginTop: '16px', fontSize: '12px', color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>
-          Running in browser mode
-        </div>
+              <button
+                onClick={handleNext}
+                disabled={!isNameValid}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  borderRadius: '14px',
+                  background: isNameValid 
+                    ? 'linear-gradient(135deg, rgba(56,189,248,0.9), rgba(37,99,235,0.9))' 
+                    : 'rgba(255,255,255,0.08)',
+                  border: 'none',
+                  color: isNameValid ? '#fff' : 'rgba(255,255,255,0.3)',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: isNameValid ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: isNameValid ? '0 10px 25px rgba(37, 99, 235, 0.3)' : 'none',
+                  transition: 'all 0.3s ease',
+                  WebkitTapHighlightColor: 'transparent'
+                }}
+              >
+                Next <ArrowRight size={18} />
+              </button>
+            </motion.div>
+          )}
+
+          {subStep === 2 && (
+            <motion.div
+              key="phone-step"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.4 }}
+              style={{
+                width: '100%',
+                maxWidth: '380px',
+                padding: '24px 20px',
+                borderRadius: '24px',
+                background: 'transparent',
+                border: 'none',
+                boxShadow: 'none',
+                boxSizing: 'border-box',
+                textAlign: 'left'
+              }}
+            >
+              <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px', color: '#fff' }}>Enter Mobile Number</h2>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '24px' }}>We will send a verification code via SMS.</p>
+              
+              {errorMsg && <p style={{ fontSize: '13px', color: '#f87171', marginBottom: '16px' }}>{errorMsg}</p>}
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '14px',
+                padding: '0 14px',
+                marginBottom: '20px',
+                boxSizing: 'border-box'
+              }}>
+                <span style={{ fontSize: '15px', fontWeight: '600', color: 'rgba(255,255,255,0.8)', marginRight: '10px' }}>+91</span>
+                <input
+                  type="tel"
+                  placeholder="Enter your number"
+                  maxLength="10"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '14px 0',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#fff',
+                    fontSize: '15px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <button
+                onClick={handleNext}
+                disabled={!isPhoneValid || loading}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  borderRadius: '14px',
+                  background: isPhoneValid 
+                    ? 'linear-gradient(135deg, rgba(56,189,248,0.9), rgba(37,99,235,0.9))' 
+                    : 'rgba(255,255,255,0.08)',
+                  border: 'none',
+                  color: isPhoneValid ? '#fff' : 'rgba(255,255,255,0.3)',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: isPhoneValid && !loading ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: isPhoneValid ? '0 10px 25px rgba(37, 99, 235, 0.3)' : 'none',
+                  transition: 'all 0.3s ease',
+                  WebkitTapHighlightColor: 'transparent'
+                }}
+              >
+                {loading ? 'Sending...' : 'Send OTP'} <ArrowRight size={18} />
+              </button>
+            </motion.div>
+          )}
+
+          {subStep === 3 && (
+            <motion.div
+              key="otp-step"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.4 }}
+              style={{
+                width: '100%',
+                maxWidth: '380px',
+                padding: '24px 20px',
+                borderRadius: '24px',
+                background: 'transparent',
+                border: 'none',
+                boxShadow: 'none',
+                boxSizing: 'border-box',
+                textAlign: 'left'
+              }}
+            >
+              <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px', color: '#fff' }}>Enter OTP</h2>
+              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '24px' }}>Code sent to +91 {phone}</p>
+              
+              {errorMsg && <p style={{ fontSize: '13px', color: '#f87171', marginBottom: '16px' }}>{errorMsg}</p>}
+
+              <div style={{ display: 'flex', gap: '6px', justifyContent: 'space-between', marginBottom: '24px' }}>
+                {otp.map((digit, index) => (
+                  <input
+                    key={index}
+                    id={`otp-input-${index}`}
+                    type="text"
+                    maxLength="1"
+                    value={digit}
+                    onChange={(e) => handleOtpChange(e.target.value, index)}
+                    style={{
+                      width: '40px',
+                      height: '48px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#fff',
+                      fontSize: '18px',
+                      fontWeight: '600',
+                      textAlign: 'center',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                ))}
+              </div>
+
+              <button
+                onClick={handleNext}
+                disabled={!isOtpValid || loading}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  borderRadius: '14px',
+                  background: isOtpValid 
+                    ? 'linear-gradient(135deg, rgba(56,189,248,0.9), rgba(37,99,235,0.9))' 
+                    : 'rgba(255,255,255,0.08)',
+                  border: 'none',
+                  color: isOtpValid ? '#fff' : 'rgba(255,255,255,0.3)',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: isOtpValid && !loading ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: isOtpValid ? '0 10px 25px rgba(37, 99, 235, 0.3)' : 'none',
+                  transition: 'all 0.3s ease',
+                  WebkitTapHighlightColor: 'transparent'
+                }}
+              >
+                {loading ? 'Verifying...' : 'Verify & Enter'} <ShieldCheck size={18} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       )}
     </div>
   );
